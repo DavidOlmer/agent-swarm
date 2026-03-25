@@ -6,6 +6,7 @@ import { createOpenAI } from "@ai-sdk/openai";
 import { createAnthropic } from "@ai-sdk/anthropic";
 import type { Env, TaskResult, ModelProvider } from "../types.js";
 import { MODEL_CONFIGS } from "../types.js";
+import { getApiKey } from "../auth.js";
 
 /**
  * Base agent class with shared LLM call + task lifecycle logic.
@@ -32,19 +33,21 @@ export abstract class BaseAgent extends DurableObject<Env> {
     return new Response("Not found", { status: 404 });
   }
 
-  /** Resolve model provider to AI SDK LanguageModel */
-  private getModel(provider: ModelProvider = "workers-ai"): LanguageModel {
+  /** Resolve model provider to AI SDK LanguageModel, using user credentials */
+  private async getModel(provider: ModelProvider = "workers-ai", userId: string = "default"): Promise<LanguageModel> {
     const config = MODEL_CONFIGS[provider];
 
     switch (provider) {
       case "openai": {
-        if (!this.env.OPENAI_API_KEY) throw new Error("OPENAI_API_KEY not set");
-        const openai = createOpenAI({ apiKey: this.env.OPENAI_API_KEY });
+        const apiKey = await getApiKey(this.env, provider, userId);
+        if (!apiKey) throw new Error("OpenAI not connected — add API key or connect via OAuth");
+        const openai = createOpenAI({ apiKey });
         return openai(config.modelId);
       }
       case "anthropic": {
-        if (!this.env.ANTHROPIC_API_KEY) throw new Error("ANTHROPIC_API_KEY not set");
-        const anthropic = createAnthropic({ apiKey: this.env.ANTHROPIC_API_KEY });
+        const apiKey = await getApiKey(this.env, provider, userId);
+        if (!apiKey) throw new Error("Anthropic not connected — add API key or connect via OAuth");
+        const anthropic = createAnthropic({ apiKey });
         return anthropic(config.modelId);
       }
       case "workers-ai":
@@ -150,7 +153,7 @@ ${learningBlock}`;
     input?: Record<string, unknown>,
     modelProvider?: ModelProvider,
   ): Promise<TaskResult> {
-    const model = this.getModel(modelProvider);
+    const model = await this.getModel(modelProvider);
     const enhancedPrompt = await this.buildEnhancedPrompt();
 
     const userPrompt = input

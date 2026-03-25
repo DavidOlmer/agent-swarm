@@ -12,9 +12,17 @@ export interface Env {
   TASK_PIPELINE: Workflow;
   ARTIFACTS: R2Bucket;
   CACHE: KVNamespace;
-  // LLM API keys (set via wrangler secret put)
+  // Fallback API keys (set via wrangler secret put)
+  // User OAuth tokens in D1 take priority over these
   OPENAI_API_KEY?: string;
   ANTHROPIC_API_KEY?: string;
+  // OAuth app credentials
+  OPENAI_CLIENT_ID?: string;
+  OPENAI_CLIENT_SECRET?: string;
+  ANTHROPIC_CLIENT_ID?: string;
+  ANTHROPIC_CLIENT_SECRET?: string;
+  // App URL for OAuth callbacks
+  APP_URL?: string;
 }
 
 export type ModelProvider = "workers-ai" | "openai" | "anthropic";

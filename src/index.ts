@@ -7,6 +7,7 @@ import { BuildAgent } from "./agents/build-agent.js";
 import { DocsAgent } from "./agents/docs-agent.js";
 import { TaskPipeline } from "./task-pipeline.js";
 import { handleApiRequest } from "./api.js";
+import { handleAuthRequest } from "./auth.js";
 import type { Env, TaskMessage, TaskType } from "./types.js";
 import { AGENT_BINDINGS } from "./types.js";
 
@@ -28,6 +29,12 @@ export default {
     ctx: ExecutionContext,
   ): Promise<Response> {
     const url = new URL(request.url);
+
+    // Auth routes (OAuth connect/callback, API key storage)
+    if (url.pathname.startsWith("/auth/")) {
+      const authResponse = await handleAuthRequest(request, env);
+      if (authResponse) return authResponse;
+    }
 
     // API routes — handled directly in Worker (not via DO)
     if (url.pathname.startsWith("/api/")) {

@@ -80,3 +80,20 @@ CREATE TABLE IF NOT EXISTS agent_runs (
 CREATE INDEX IF NOT EXISTS idx_agent_runs_task ON agent_runs(task_id);
 CREATE INDEX IF NOT EXISTS idx_agent_runs_type ON agent_runs(agent_type);
 CREATE INDEX IF NOT EXISTS idx_agent_runs_outcome ON agent_runs(agent_type, outcome);
+
+-- User credentials: OAuth tokens and API keys per user per provider
+CREATE TABLE IF NOT EXISTS credentials (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  provider TEXT NOT NULL,              -- 'openai', 'anthropic', 'workers-ai'
+  credential_type TEXT NOT NULL,       -- 'api_key', 'oauth_token'
+  access_token TEXT,                   -- encrypted API key or OAuth access token
+  refresh_token TEXT,                  -- OAuth refresh token
+  token_expires_at TEXT,               -- OAuth token expiry
+  scopes TEXT,                         -- OAuth scopes granted
+  metadata TEXT,                       -- JSON: org_id, account name, etc.
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_credentials_user_provider ON credentials(user_id, provider);
