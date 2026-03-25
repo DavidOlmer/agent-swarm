@@ -10,6 +10,7 @@ import { DesignAgent } from "./agents/design-agent.js";
 import { TaskPipeline } from "./task-pipeline.js";
 import { handleApiRequest } from "./api.js";
 import { handleAuthRequest } from "./auth.js";
+import { handleScheduled } from "./stale-monitor.js";
 import type { Env, TaskMessage, TaskType } from "./types.js";
 import { AGENT_BINDINGS } from "./types.js";
 
@@ -105,5 +106,14 @@ export default {
         }
       }
     }
+  },
+
+  // Cron trigger: stale task monitor (every 5 minutes)
+  async scheduled(
+    controller: ScheduledController,
+    env: Env,
+    ctx: ExecutionContext,
+  ): Promise<void> {
+    ctx.waitUntil(handleScheduled(env));
   },
 };

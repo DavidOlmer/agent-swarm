@@ -78,5 +78,9 @@ bucket_name = "agent-swarm-artifacts"
 binding = "CACHE"
 id = "f278ae9022b1433eb762ab554826f512"
 
+# Cron trigger: stale task monitor every 5 minutes
+[triggers]
+crons = ["*/5 * * * *"]
+
 [observability]
 enabled = true
