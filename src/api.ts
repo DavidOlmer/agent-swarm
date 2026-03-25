@@ -48,6 +48,16 @@ export async function handleApiRequest(request: Request, env: Env): Promise<Resp
     return handleGetStats(env);
   }
 
+  // POST /api/ci-webhook — GitHub Actions reports CI gate results
+  if (url.pathname === "/api/ci-webhook" && request.method === "POST") {
+    return handleCiWebhook(request, env);
+  }
+
+  // POST /api/ci-trigger — trigger CI gate for a task
+  if (url.pathname === "/api/ci-trigger" && request.method === "POST") {
+    return handleCiTrigger(request, env);
+  }
+
   return null;
 }
 
@@ -172,5 +182,84 @@ async function handleGetStats(env: Env): Promise<Response> {
     tasks: taskStats.results,
     reliability: reliabilityStats.results,
     topLearnings: topLearnings.results,
+  });
+}
+
+// ============================================================
+// CI Gate: GitHub Actions integration
+// ============================================================
+
+interface CiWebhookPayload {
+  task_id: string;
+  passed: boolean;
+  checks: Record<string, { passed: boolean }>;
+  run_url?: string;
+}
+
+async function handleCiWebhook(request: Request, env: Env): Promise<Response> {
+  const body = (await request.json()) as CiWebhookPayload;
+  const { task_id, passed, checks, run_url } = body;
+
+  // Update task with CI results
+  if (passed) {
+    await env.DB.prepare(
+      `UPDATE tasks SET status = 'completed', output = ?,
+       completed_at = datetime('now'), updated_at = datetime('now') WHERE id = ?`,
+    ).bind(JSON.stringify({ ci_checks: checks, run_url }), task_id).run();
+  } else {
+    const failedChecks = Object.entries(checks)
+      .filter(([, v]) => !v.passed)
+      .map(([k]) => k)
+      .join(", ");
+
+    await env.DB.prepare(
+      `UPDATE tasks SET status = 'failed',
+       error = ?, updated_at = datetime('now') WHERE id = ?`,
+    ).bind(`CI gate failed: ${failedChecks}. See: ${run_url ?? "GitHub Actions"}`, task_id).run();
+
+    // Log as learnings
+    for (const [checkName, result] of Object.entries(checks)) {
+      if (!result.passed) {
+        const existing = await env.DB.prepare(
+          `SELECT id, frequency FROM learnings WHERE agent_type = 'ci' AND description = ?`,
+        ).bind(`CI check failed: ${checkName}`).first<{ id: string; frequency: number }>();
+
+        if (existing) {
+          await env.DB.prepare(`UPDATE learnings SET frequency = ?, last_seen_at = datetime('now') WHERE id = ?`)
+            .bind(existing.frequency + 1, existing.id).run();
+        } else {
+          await env.DB.prepare(
+            `INSERT INTO learnings (id, agent_type, pattern_type, description, context)
+             VALUES (?, 'ci', 'failure', ?, ?)`,
+          ).bind(crypto.randomUUID(), `CI check failed: ${checkName}`, JSON.stringify({ task_id, run_url })).run();
+        }
+      }
+    }
+  }
+
+  // If this task is part of a workflow, send event to resume it
+  try {
+    const instance = await env.TASK_PIPELINE.get(task_id);
+    await instance.sendEvent({ type: "ci-result", payload: body });
+  } catch {
+    // Not a workflow task, that's fine
+  }
+
+  return Response.json({ ok: true, task_id, passed });
+}
+
+async function handleCiTrigger(request: Request, env: Env): Promise<Response> {
+  const body = (await request.json()) as { task_id: string; repo?: string };
+  const repo = body.repo ?? "DavidOlmer/agent-swarm";
+  const callbackUrl = `${new URL(request.url).origin}/api/ci-webhook`;
+
+  // Trigger GitHub Actions workflow via gh CLI API
+  const ghToken = env.OPENAI_API_KEY; // TODO: add GH_TOKEN secret
+  // For now, return the manual trigger command
+  return Response.json({
+    ok: true,
+    task_id: body.task_id,
+    manual_trigger: `gh workflow run ci-gate.yml -R ${repo} -f task_id=${body.task_id} -f callback_url=${callbackUrl}`,
+    callback_url: callbackUrl,
   });
 }

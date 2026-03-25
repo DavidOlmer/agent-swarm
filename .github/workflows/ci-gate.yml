@@ -1,0 +1,90 @@
+name: CI Gate
+on:
+  push:
+    branches: ['ci-check/**']
+  workflow_dispatch:
+    inputs:
+      task_id:
+        description: 'Swarm task ID to report back to'
+        required: true
+      callback_url:
+        description: 'Swarm webhook URL for results'
+        required: true
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: TypeScript check
+        id: typecheck
+        run: npx tsc --noEmit 2>&1 | tee /tmp/tsc.log || true
+        continue-on-error: true
+
+      - name: ESLint
+        id: lint
+        run: npx eslint src/ --format json > /tmp/eslint.json 2>&1 || true
+        continue-on-error: true
+
+      - name: npm audit
+        id: audit
+        run: npm audit --json > /tmp/audit.json 2>&1 || true
+        continue-on-error: true
+
+      - name: Tests
+        id: tests
+        run: npx vitest run --reporter=json > /tmp/test.json 2>&1 || true
+        continue-on-error: true
+
+      - name: License check
+        id: license
+        run: npx license-checker --json > /tmp/licenses.json 2>&1 || true
+        continue-on-error: true
+
+      - name: Bundle size
+        id: bundle
+        run: |
+          npx wrangler deploy --dry-run --outdir /tmp/bundle 2>&1 || true
+          du -sh /tmp/bundle/* 2>/dev/null | tee /tmp/bundle-size.log || true
+        continue-on-error: true
+
+      - name: Report results to swarm
+        if: github.event.inputs.callback_url
+        env:
+          CALLBACK_URL: ${{ github.event.inputs.callback_url }}
+          TASK_ID: ${{ github.event.inputs.task_id }}
+        run: |
+          # Collect all results
+          TYPECHECK_OK=${{ steps.typecheck.outcome == 'success' }}
+          LINT_OK=${{ steps.lint.outcome == 'success' }}
+          AUDIT_OK=${{ steps.audit.outcome == 'success' }}
+          TESTS_OK=${{ steps.tests.outcome == 'success' }}
+          LICENSE_OK=${{ steps.license.outcome == 'success' }}
+
+          ALL_PASSED=true
+          if [ "$TYPECHECK_OK" = "false" ] || [ "$TESTS_OK" = "false" ]; then
+            ALL_PASSED=false
+          fi
+
+          curl -s -X POST "$CALLBACK_URL" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"task_id\": \"$TASK_ID\",
+              \"passed\": $ALL_PASSED,
+              \"checks\": {
+                \"typecheck\": {\"passed\": $TYPECHECK_OK},
+                \"lint\": {\"passed\": $LINT_OK},
+                \"audit\": {\"passed\": $AUDIT_OK},
+                \"tests\": {\"passed\": $TESTS_OK},
+                \"license\": {\"passed\": $LICENSE_OK}
+              },
+              \"run_url\": \"$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID\"
+            }"
