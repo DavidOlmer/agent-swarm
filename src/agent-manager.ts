@@ -1,5 +1,5 @@
 import { Agent, callable } from "agents";
-import type { Env, ManagerState, CreateTaskRequest, Task, TaskMessage } from "./types.js";
+import type { Env, ManagerState, CreateTaskRequest, Task, TaskMessage, PipelineParams } from "./types.js";
 
 export class AgentManager extends Agent<Env, ManagerState> {
   initialState: ManagerState = { activeTaskCount: 0 };
@@ -16,14 +16,21 @@ export class AgentManager extends Agent<Env, ManagerState> {
       return this.handleGetTask(taskId);
     }
 
+    // POST /api/tasks/:id/review — send review event to workflow
+    if (url.pathname.match(/^\/api\/tasks\/[^/]+\/review$/) && request.method === "POST") {
+      const taskId = url.pathname.split("/").slice(-2, -1)[0];
+      return this.handleReview(taskId, request);
+    }
+
     return new Response("Not found", { status: 404 });
   }
 
   private async handleCreateTask(request: Request): Promise<Response> {
-    const body = (await request.json()) as CreateTaskRequest;
+    const body = (await request.json()) as CreateTaskRequest & { requiresReview?: boolean; useWorkflow?: boolean };
     const taskId = crypto.randomUUID();
     const type = body.type ?? "code";
     const priority = body.priority ?? 2;
+    const useWorkflow = body.useWorkflow ?? body.requiresReview ?? false;
 
     // Persist task to D1
     await this.env.DB.prepare(
@@ -33,16 +40,46 @@ export class AgentManager extends Agent<Env, ManagerState> {
       .bind(taskId, type, priority, body.description, JSON.stringify(body.input ?? {}))
       .run();
 
-    // Enqueue to task queue for async processing
-    const message: TaskMessage = {
-      taskId,
-      type,
-      description: body.description,
-      input: body.input,
-    };
-    await this.env.TASK_QUEUE.send(message);
+    if (useWorkflow) {
+      // Durable workflow: retries, human approval, multi-step
+      const params: PipelineParams = {
+        taskId,
+        type,
+        description: body.description,
+        input: body.input,
+        requiresReview: body.requiresReview,
+      };
+      await this.env.TASK_PIPELINE.create({ id: taskId, params });
 
-    return Response.json({ id: taskId, status: "queued" }, { status: 201 });
+      return Response.json({ id: taskId, status: "queued", mode: "workflow" }, { status: 201 });
+    } else {
+      // Simple queue: fire-and-forget
+      const message: TaskMessage = {
+        taskId,
+        type,
+        description: body.description,
+        input: body.input,
+      };
+      await this.env.TASK_QUEUE.send(message);
+
+      return Response.json({ id: taskId, status: "queued", mode: "queue" }, { status: 201 });
+    }
+  }
+
+  private async handleReview(taskId: string, request: Request): Promise<Response> {
+    const body = (await request.json()) as { approved: boolean; reviewer: string; feedback?: string };
+
+    try {
+      const instance = await this.env.TASK_PIPELINE.get(taskId);
+      await instance.sendEvent({
+        type: "task-review",
+        payload: body,
+      });
+      return Response.json({ ok: true, taskId });
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      return Response.json({ error: `Failed to send review: ${msg}` }, { status: 400 });
+    }
   }
 
   private async handleGetTask(taskId: string): Promise<Response> {

@@ -49,5 +49,11 @@ max_batch_size = 10
 max_batch_timeout = 30
 max_retries = 0
 
+# Task Pipeline Workflow: durable multi-step agent orchestration
+[[workflows]]
+name = "task-pipeline"
+binding = "TASK_PIPELINE"
+class_name = "TaskPipeline"
+
 [observability]
 enabled = true

@@ -9,9 +9,10 @@ export interface Env {
   DOCS_AGENT: DurableObjectNamespace;
   TASK_QUEUE: Queue<TaskMessage>;
   TASK_DLQ: Queue<TaskMessage>;
+  TASK_PIPELINE: Workflow;
 }
 
-export type TaskStatus = "pending" | "assigned" | "running" | "completed" | "failed";
+export type TaskStatus = "pending" | "queued" | "assigned" | "running" | "review" | "completed" | "failed";
 export type TaskType = "code" | "test" | "review" | "build" | "docs";
 
 export interface Task {
@@ -67,3 +68,19 @@ export const AGENT_BINDINGS: Record<TaskType, keyof Env> = {
   build: "BUILD_AGENT",
   docs: "DOCS_AGENT",
 };
+
+// Workflow params
+export interface PipelineParams {
+  taskId: string;
+  type: TaskType;
+  description: string;
+  input?: Record<string, unknown>;
+  requiresReview?: boolean;
+}
+
+// Human review event payload
+export interface ReviewPayload {
+  approved: boolean;
+  reviewer: string;
+  feedback?: string;
+}

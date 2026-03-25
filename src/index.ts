@@ -5,11 +5,12 @@ import { TestAgent } from "./agents/test-agent.js";
 import { ReviewAgent } from "./agents/review-agent.js";
 import { BuildAgent } from "./agents/build-agent.js";
 import { DocsAgent } from "./agents/docs-agent.js";
+import { TaskPipeline } from "./task-pipeline.js";
 import type { Env, TaskMessage, TaskType } from "./types.js";
 import { AGENT_BINDINGS } from "./types.js";
 
-// Re-export all DO classes (required by wrangler)
-export { AgentManager, CodeAgent, TestAgent, ReviewAgent, BuildAgent, DocsAgent };
+// Re-export all DO + Workflow classes (required by wrangler)
+export { AgentManager, CodeAgent, TestAgent, ReviewAgent, BuildAgent, DocsAgent, TaskPipeline };
 
 function getAgentStub(env: Env, type: TaskType, taskId: string) {
   const bindingName = AGENT_BINDINGS[type];
