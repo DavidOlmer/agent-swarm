@@ -1,0 +1,26 @@
+{
+  "name": "agent-swarm",
+  "version": "1.0.0",
+  "description": "Cloudflare Agent Swarm - Multi-agent system on Workers",
+  "main": "src/index.ts",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "db:migrate:local": "wrangler d1 execute agent-swarm-state --local --file=schema.sql",
+    "db:migrate:remote": "wrangler d1 execute agent-swarm-state --remote --file=schema.sql",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "dependencies": {
+    "@cloudflare/workers-types": "^4.20260317.1",
+    "agents": "^0.8.2",
+    "ai": "^6.0.138",
+    "typescript": "^6.0.2",
+    "workers-ai-provider": "^3.1.7",
+    "wrangler": "^4.77.0",
+    "zod": "^4.3.6"
+  }
+}

@@ -1,0 +1,25 @@
+name = "agent-swarm"
+main = "src/index.ts"
+compatibility_date = "2025-03-25"
+compatibility_flags = ["nodejs_compat"]
+
+[ai]
+binding = "AI"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "agent-swarm-state"
+database_id = "LOCAL"  # Replace with real ID after: wrangler d1 create agent-swarm-state
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["AgentManager", "CodeAgent"]
+
+[durable_objects]
+bindings = [
+  { name = "AGENT_MANAGER", class_name = "AgentManager" },
+  { name = "CODE_AGENT", class_name = "CodeAgent" },
+]
+
+[observability]
+enabled = true
