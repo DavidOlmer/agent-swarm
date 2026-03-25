@@ -70,13 +70,13 @@ async function handleCreateTask(request: Request, env: Env): Promise<Response> {
       taskId,
       type,
       description: body.description,
-      input: body.input,
+      input: { ...body.input, model: body.model },
       requiresReview: body.requiresReview,
     };
     await env.TASK_PIPELINE.create({ id: taskId, params });
     return Response.json({ id: taskId, status: "queued", mode: "workflow" }, { status: 201 });
   } else {
-    const message: TaskMessage = { taskId, type, description: body.description, input: body.input };
+    const message: TaskMessage = { taskId, type, description: body.description, input: body.input, model: body.model };
     await env.TASK_QUEUE.send(message);
     return Response.json({ id: taskId, status: "queued", mode: "queue" }, { status: 201 });
   }

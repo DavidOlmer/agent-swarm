@@ -12,7 +12,18 @@ export interface Env {
   TASK_PIPELINE: Workflow;
   ARTIFACTS: R2Bucket;
   CACHE: KVNamespace;
+  // LLM API keys (set via wrangler secret put)
+  OPENAI_API_KEY?: string;
+  ANTHROPIC_API_KEY?: string;
 }
+
+export type ModelProvider = "workers-ai" | "openai" | "anthropic";
+
+export const MODEL_CONFIGS: Record<ModelProvider, { modelId: string; label: string }> = {
+  "workers-ai": { modelId: "@cf/meta/llama-4-scout-17b-16e-instruct", label: "Llama 4 Scout (Workers AI)" },
+  "openai": { modelId: "o3-mini", label: "o3-mini (OpenAI/Codex)" },
+  "anthropic": { modelId: "claude-sonnet-4-5-20250514", label: "Claude Sonnet 4.5 (Anthropic)" },
+};
 
 export type TaskStatus = "pending" | "queued" | "assigned" | "running" | "review" | "completed" | "failed";
 export type TaskType = "code" | "test" | "review" | "build" | "docs";
@@ -38,6 +49,7 @@ export interface CreateTaskRequest {
   type?: TaskType;
   priority?: number;
   input?: Record<string, unknown>;
+  model?: ModelProvider;
 }
 
 export interface TaskResult {
@@ -60,6 +72,7 @@ export interface TaskMessage {
   type: TaskType;
   description: string;
   input?: Record<string, unknown>;
+  model?: ModelProvider;
 }
 
 // Agent DO binding map for routing

@@ -58,7 +58,7 @@ export default {
     ctx: ExecutionContext,
   ): Promise<void> {
     for (const message of batch.messages) {
-      const { taskId, type, description, input } = message.body;
+      const { taskId, type, description, input, model } = message.body;
 
       try {
         const { stub, agentName } = getAgentStub(env, type, taskId);
@@ -73,7 +73,7 @@ export default {
           new Request("https://internal/execute", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ taskId, description, input }),
+            body: JSON.stringify({ taskId, description, input, model }),
           }),
         );
 

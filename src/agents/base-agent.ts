@@ -1,13 +1,15 @@
 import { DurableObject } from "cloudflare:workers";
 import { generateText } from "ai";
+import type { LanguageModel } from "ai";
 import { createWorkersAI } from "workers-ai-provider";
-import type { Env, CodeAgentState, TaskResult } from "../types.js";
-
-const MODEL_ID = "@cf/meta/llama-4-scout-17b-16e-instruct";
+import { createOpenAI } from "@ai-sdk/openai";
+import { createAnthropic } from "@ai-sdk/anthropic";
+import type { Env, TaskResult, ModelProvider } from "../types.js";
+import { MODEL_CONFIGS } from "../types.js";
 
 /**
  * Base agent class with shared LLM call + task lifecycle logic.
- * Uses plain DurableObject (not Agent SDK) for reliable HTTP dispatch.
+ * Supports Workers AI, OpenAI (Codex), and Anthropic (Claude).
  * Specialized agents override systemPrompt.
  */
 export abstract class BaseAgent extends DurableObject<Env> {
@@ -21,30 +23,55 @@ export abstract class BaseAgent extends DurableObject<Env> {
         taskId: string;
         description: string;
         input?: Record<string, unknown>;
+        model?: ModelProvider;
       };
-      // Fire-and-forget: start execution, return immediately
-      this.ctx.waitUntil(this.executeTask(body.taskId, body.description, body.input));
+      this.ctx.waitUntil(this.executeTask(body.taskId, body.description, body.input, body.model));
       return new Response("accepted", { status: 202 });
     }
 
     return new Response("Not found", { status: 404 });
   }
 
+  /** Resolve model provider to AI SDK LanguageModel */
+  private getModel(provider: ModelProvider = "workers-ai"): LanguageModel {
+    const config = MODEL_CONFIGS[provider];
+
+    switch (provider) {
+      case "openai": {
+        if (!this.env.OPENAI_API_KEY) throw new Error("OPENAI_API_KEY not set");
+        const openai = createOpenAI({ apiKey: this.env.OPENAI_API_KEY });
+        return openai(config.modelId);
+      }
+      case "anthropic": {
+        if (!this.env.ANTHROPIC_API_KEY) throw new Error("ANTHROPIC_API_KEY not set");
+        const anthropic = createAnthropic({ apiKey: this.env.ANTHROPIC_API_KEY });
+        return anthropic(config.modelId);
+      }
+      case "workers-ai":
+      default: {
+        const workersai = createWorkersAI({ binding: this.env.AI });
+        return workersai(config.modelId);
+      }
+    }
+  }
+
   private async executeTask(
     taskId: string,
     description: string,
     input?: Record<string, unknown>,
+    modelProvider?: ModelProvider,
   ): Promise<void> {
     const agentType = this.constructor.name.replace("Agent", "").toLowerCase();
+    const provider = modelProvider ?? "workers-ai";
+    const modelId = MODEL_CONFIGS[provider].modelId;
     const runId = crypto.randomUUID();
     const startTime = Date.now();
 
-    // Create agent_run record
     await this.env.DB.prepare(
       `INSERT INTO agent_runs (id, task_id, agent_type, model, status)
        VALUES (?, ?, ?, ?, 'started')`,
     )
-      .bind(runId, taskId, agentType, MODEL_ID)
+      .bind(runId, taskId, agentType, `${provider}/${modelId}`)
       .run();
 
     await this.env.DB.prepare(
@@ -54,16 +81,14 @@ export abstract class BaseAgent extends DurableObject<Env> {
       .run();
 
     try {
-      const result = await this.callLLM(description, input);
-
+      const result = await this.callLLM(description, input, provider);
       const resultJson = JSON.stringify(result);
       const durationMs = Date.now() - startTime;
 
-      // Store full output in R2
       await this.env.ARTIFACTS.put(
         `tasks/${taskId}/output.json`,
         resultJson,
-        { customMetadata: { taskId, type: agentType, timestamp: new Date().toISOString() } },
+        { customMetadata: { taskId, type: agentType, model: provider, timestamp: new Date().toISOString() } },
       );
 
       await this.env.DB.prepare(
@@ -72,7 +97,6 @@ export abstract class BaseAgent extends DurableObject<Env> {
         .bind(resultJson, taskId)
         .run();
 
-      // Log successful run metrics (Narayanan & Kapoor: C_out, C_res)
       await this.env.DB.prepare(
         `UPDATE agent_runs SET status = 'completed', outcome = 1, duration_ms = ?,
          completed_at = datetime('now') WHERE id = ?`,
@@ -80,8 +104,7 @@ export abstract class BaseAgent extends DurableObject<Env> {
         .bind(durationMs, runId)
         .run();
     } catch (error) {
-      const errorMsg =
-        error instanceof Error ? error.message : String(error);
+      const errorMsg = error instanceof Error ? error.message : String(error);
       const durationMs = Date.now() - startTime;
 
       await this.env.DB.prepare(
@@ -90,7 +113,6 @@ export abstract class BaseAgent extends DurableObject<Env> {
         .bind(errorMsg, taskId)
         .run();
 
-      // Log failed run metrics
       await this.env.DB.prepare(
         `UPDATE agent_runs SET status = 'failed', outcome = 0, duration_ms = ?,
          error = ?, completed_at = datetime('now') WHERE id = ?`,
@@ -98,7 +120,6 @@ export abstract class BaseAgent extends DurableObject<Env> {
         .bind(durationMs, errorMsg, runId)
         .run();
     }
-
   }
 
   /** Load past learnings from D1 and inject into system prompt */
@@ -127,11 +148,9 @@ ${learningBlock}`;
   protected async callLLM(
     description: string,
     input?: Record<string, unknown>,
+    modelProvider?: ModelProvider,
   ): Promise<TaskResult> {
-    const workersai = createWorkersAI({ binding: this.env.AI });
-    const model = workersai(MODEL_ID);
-
-    // Inject learnings into system prompt
+    const model = this.getModel(modelProvider);
     const enhancedPrompt = await this.buildEnhancedPrompt();
 
     const userPrompt = input
@@ -144,16 +163,22 @@ ${learningBlock}`;
       prompt: userPrompt,
     });
 
+    // Strip markdown code fences if present
+    let text = result.text.trim();
+    if (text.startsWith("```")) {
+      text = text.replace(/^```\w*\n?/, "").replace(/\n?```$/, "").trim();
+    }
+
     try {
-      const parsed = JSON.parse(result.text);
+      const parsed = JSON.parse(text);
       return {
-        code: parsed.code ?? result.text,
+        code: parsed.code ?? text,
         explanation: parsed.explanation ?? "",
         language: parsed.language ?? "unknown",
       };
     } catch {
       return {
-        code: result.text,
+        code: text,
         explanation: "Raw LLM output (JSON parse failed)",
         language: "unknown",
       };
