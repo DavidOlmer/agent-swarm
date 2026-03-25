@@ -1,4 +1,4 @@
-import { Agent } from "agents";
+import { DurableObject } from "cloudflare:workers";
 import { generateText } from "ai";
 import { createWorkersAI } from "workers-ai-provider";
 import type { Env, CodeAgentState, TaskResult } from "../types.js";
@@ -7,14 +7,13 @@ const MODEL_ID = "@cf/meta/llama-4-scout-17b-16e-instruct";
 
 /**
  * Base agent class with shared LLM call + task lifecycle logic.
- * Specialized agents override systemPrompt and optionally processResult.
+ * Uses plain DurableObject (not Agent SDK) for reliable HTTP dispatch.
+ * Specialized agents override systemPrompt.
  */
-export abstract class BaseAgent extends Agent<Env, CodeAgentState> {
-  initialState: CodeAgentState = { currentTaskId: null, status: "idle" };
-
+export abstract class BaseAgent extends DurableObject<Env> {
   abstract get systemPrompt(): string;
 
-  async onRequest(request: Request): Promise<Response> {
+  async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url);
 
     if (url.pathname === "/execute" && request.method === "POST") {
@@ -23,7 +22,8 @@ export abstract class BaseAgent extends Agent<Env, CodeAgentState> {
         description: string;
         input?: Record<string, unknown>;
       };
-      this.executeTask(body.taskId, body.description, body.input);
+      // Fire-and-forget: start execution, return immediately
+      this.ctx.waitUntil(this.executeTask(body.taskId, body.description, body.input));
       return new Response("accepted", { status: 202 });
     }
 
@@ -35,7 +35,6 @@ export abstract class BaseAgent extends Agent<Env, CodeAgentState> {
     description: string,
     input?: Record<string, unknown>,
   ): Promise<void> {
-    this.setState({ currentTaskId: taskId, status: "working" });
     const agentType = this.constructor.name.replace("Agent", "").toLowerCase();
     const runId = crypto.randomUUID();
     const startTime = Date.now();
@@ -55,9 +54,7 @@ export abstract class BaseAgent extends Agent<Env, CodeAgentState> {
       .run();
 
     try {
-      const result = await this.keepAliveWhile(async () => {
-        return this.callLLM(description, input);
-      });
+      const result = await this.callLLM(description, input);
 
       const resultJson = JSON.stringify(result);
       const durationMs = Date.now() - startTime;
@@ -102,7 +99,6 @@ export abstract class BaseAgent extends Agent<Env, CodeAgentState> {
         .run();
     }
 
-    this.setState({ currentTaskId: null, status: "idle" });
   }
 
   /** Load past learnings from D1 and inject into system prompt */

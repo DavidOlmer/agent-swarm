@@ -16,7 +16,8 @@ database_id = "LOCAL"  # Replace with real ID after: wrangler d1 create agent-sw
 
 [[migrations]]
 tag = "v1"
-new_sqlite_classes = ["AgentManager", "CodeAgent", "TestAgent", "ReviewAgent", "BuildAgent", "DocsAgent"]
+new_sqlite_classes = ["AgentManager"]
+new_classes = ["CodeAgent", "TestAgent", "ReviewAgent", "BuildAgent", "DocsAgent"]
 
 [durable_objects]
 bindings = [

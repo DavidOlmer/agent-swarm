@@ -6,6 +6,7 @@ import { ReviewAgent } from "./agents/review-agent.js";
 import { BuildAgent } from "./agents/build-agent.js";
 import { DocsAgent } from "./agents/docs-agent.js";
 import { TaskPipeline } from "./task-pipeline.js";
+import { handleApiRequest } from "./api.js";
 import type { Env, TaskMessage, TaskType } from "./types.js";
 import { AGENT_BINDINGS } from "./types.js";
 
@@ -28,11 +29,10 @@ export default {
   ): Promise<Response> {
     const url = new URL(request.url);
 
-    // Task API routes → forward to Agent Manager singleton
-    if (url.pathname.startsWith("/api/tasks")) {
-      const id = env.AGENT_MANAGER.idFromName("manager");
-      const stub = env.AGENT_MANAGER.get(id);
-      return stub.fetch(request);
+    // API routes — handled directly in Worker (not via DO)
+    if (url.pathname.startsWith("/api/")) {
+      const apiResponse = await handleApiRequest(request, env);
+      if (apiResponse) return apiResponse;
     }
 
     // Agent SDK routing (WebSocket, RPC)
@@ -61,7 +61,6 @@ export default {
       const { taskId, type, description, input } = message.body;
 
       try {
-        // Update D1: mark assigned
         const { stub, agentName } = getAgentStub(env, type, taskId);
 
         await env.DB.prepare(
@@ -70,7 +69,6 @@ export default {
           .bind(agentName, taskId)
           .run();
 
-        // Dispatch to agent DO
         const response = await stub.fetch(
           new Request("https://internal/execute", {
             method: "POST",
@@ -88,7 +86,6 @@ export default {
         if (message.attempts < 3) {
           message.retry({ delaySeconds: Math.pow(2, message.attempts) });
         } else {
-          // Will go to DLQ after max_retries
           const errorMsg = error instanceof Error ? error.message : String(error);
           await env.DB.prepare(
             `UPDATE tasks SET status = 'failed', error = ?, updated_at = datetime('now') WHERE id = ?`,
