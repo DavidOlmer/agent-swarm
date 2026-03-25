@@ -176,14 +176,75 @@ export function codeQualityGate(code: string): GateResult {
 }
 
 // ============================================================
+// Gate 4: TDD Enforcement (for code tasks)
+// ============================================================
+
+export function tddGate(code: string, taskType: string): GateResult {
+  const findings: Finding[] = [];
+
+  if (taskType !== "code") {
+    return { gate: "tdd-enforcement", passed: true, findings: [], score: 100 };
+  }
+
+  // Check for test patterns
+  const hasTests = /(?:describe|it|test|expect|assert)\s*\(/.test(code);
+  if (!hasTests) {
+    findings.push({
+      severity: "high",
+      category: "tdd",
+      message: "No test patterns found (describe/it/test/expect) — TDD requires tests with code",
+    });
+  }
+
+  // Check for error handling
+  const hasTryCatch = /try\s*\{/.test(code);
+  const hasErrorType = /catch\s*\(\s*\w+/.test(code);
+  if (!hasTryCatch && code.split("\n").length > 30) {
+    findings.push({
+      severity: "medium",
+      category: "verification",
+      message: "No try/catch in substantial code — verify error cases",
+    });
+  }
+
+  // Check for edge case handling (null/undefined checks)
+  const hasNullChecks = /(?:=== null|!== null|=== undefined|\?\.|!\.)/.test(code);
+  if (!hasNullChecks && code.split("\n").length > 20) {
+    findings.push({
+      severity: "low",
+      category: "verification",
+      message: "No null/undefined checks — verify edge cases handled",
+    });
+  }
+
+  // Check for input validation
+  const hasValidation = /(?:typeof|instanceof|Array\.isArray|\.length\s*[<>=]|z\.object|z\.string)/.test(code);
+  if (!hasValidation && code.split("\n").length > 20) {
+    findings.push({
+      severity: "low",
+      category: "verification",
+      message: "No input validation found — verify inputs are checked",
+    });
+  }
+
+  return {
+    gate: "tdd-enforcement",
+    passed: !findings.some((f) => f.severity === "critical"),
+    findings,
+    score: score(findings),
+  };
+}
+
+// ============================================================
 // Run all gates
 // ============================================================
 
-export function runAllGates(code: string): { passed: boolean; gates: GateResult[]; overallScore: number } {
+export function runAllGates(code: string, taskType: string = "code"): { passed: boolean; gates: GateResult[]; overallScore: number } {
   const gates = [
     secretDetectionGate(code),
     securityGate(code),
     codeQualityGate(code),
+    tddGate(code, taskType),
   ];
 
   const overallScore = Math.round(gates.reduce((sum, g) => sum + g.score, 0) / gates.length);

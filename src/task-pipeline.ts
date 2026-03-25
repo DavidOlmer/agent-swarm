@@ -68,7 +68,7 @@ export class TaskPipeline extends WorkflowEntrypoint<Env, PipelineParams> {
       } catch { /* use raw output */ }
 
       // Run all deterministic gates
-      const result = runAllGates(code);
+      const result = runAllGates(code, type);
 
       // Store gate results in R2 for audit
       await this.env.ARTIFACTS.put(

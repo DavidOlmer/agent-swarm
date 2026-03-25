@@ -7,6 +7,7 @@ import { createAnthropic } from "@ai-sdk/anthropic";
 import type { Env, TaskResult, ModelProvider } from "../types.js";
 import { MODEL_CONFIGS } from "../types.js";
 import { getApiKey } from "../auth.js";
+import { buildRulesBlock } from "../skills.js";
 
 /**
  * Base agent class with shared LLM call + task lifecycle logic.
@@ -125,9 +126,18 @@ export abstract class BaseAgent extends DurableObject<Env> {
     }
   }
 
-  /** Load past learnings from D1 and inject into system prompt */
+  /** Build enhanced prompt: base + skills/rules (KV) + learnings (D1) */
   private async buildEnhancedPrompt(): Promise<string> {
     const agentType = this.constructor.name.replace("Agent", "").toLowerCase();
+
+    // Layer 1: Base system prompt
+    let prompt = this.systemPrompt;
+
+    // Layer 2: SWE superpowers from KV (hot-reloadable)
+    const rulesBlock = await buildRulesBlock(this.env);
+    prompt += rulesBlock;
+
+    // Layer 3: Learnings from D1 (feedback loop)
     const { results: learnings } = await this.env.DB.prepare(
       `SELECT description, pattern_type, frequency FROM learnings
        WHERE agent_type = ? AND frequency >= 2
@@ -136,16 +146,14 @@ export abstract class BaseAgent extends DurableObject<Env> {
       .bind(agentType)
       .all<{ description: string; pattern_type: string; frequency: number }>();
 
-    if (learnings.length === 0) return this.systemPrompt;
+    if (learnings.length > 0) {
+      const learningBlock = learnings
+        .map((l) => `- [${l.pattern_type}] ${l.description} (seen ${l.frequency}x)`)
+        .join("\n");
+      prompt += `\n\nLEARNED PATTERNS (from past runs):\n${learningBlock}`;
+    }
 
-    const learningBlock = learnings
-      .map((l) => `- [${l.pattern_type}] ${l.description} (seen ${l.frequency}x)`)
-      .join("\n");
-
-    return `${this.systemPrompt}
-
-LEARNED PATTERNS (from past runs — avoid known failures, repeat successes):
-${learningBlock}`;
+    return prompt;
   }
 
   protected async callLLM(
