@@ -20,7 +20,11 @@ new_sqlite_classes = ["AgentManager", "CodeAgent", "TestAgent", "ReviewAgent", "
 
 [[migrations]]
 tag = "v2"
-new_sqlite_classes = ["SecurityAgent", "DesignAgent"]
+new_sqlite_classes = ["SecurityAgent"]
+
+[[migrations]]
+tag = "v3"
+new_sqlite_classes = ["DesignAgent"]
 
 [durable_objects]
 bindings = [
