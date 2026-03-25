@@ -13,13 +13,41 @@ database_id = "LOCAL"  # Replace with real ID after: wrangler d1 create agent-sw
 
 [[migrations]]
 tag = "v1"
-new_sqlite_classes = ["AgentManager", "CodeAgent"]
+new_sqlite_classes = ["AgentManager", "CodeAgent", "TestAgent", "ReviewAgent", "BuildAgent", "DocsAgent"]
 
 [durable_objects]
 bindings = [
   { name = "AGENT_MANAGER", class_name = "AgentManager" },
   { name = "CODE_AGENT", class_name = "CodeAgent" },
+  { name = "TEST_AGENT", class_name = "TestAgent" },
+  { name = "REVIEW_AGENT", class_name = "ReviewAgent" },
+  { name = "BUILD_AGENT", class_name = "BuildAgent" },
+  { name = "DOCS_AGENT", class_name = "DocsAgent" },
 ]
+
+# Task Queue: Agent Manager produces, Worker consumes and routes to agents
+[[queues.producers]]
+queue = "task-queue"
+binding = "TASK_QUEUE"
+
+[[queues.consumers]]
+queue = "task-queue"
+max_batch_size = 5
+max_batch_timeout = 3
+max_retries = 3
+dead_letter_queue = "task-queue-dlq"
+max_concurrency = 10
+
+# Dead letter queue for failed tasks
+[[queues.producers]]
+queue = "task-queue-dlq"
+binding = "TASK_DLQ"
+
+[[queues.consumers]]
+queue = "task-queue-dlq"
+max_batch_size = 10
+max_batch_timeout = 30
+max_retries = 0
 
 [observability]
 enabled = true

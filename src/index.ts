@@ -1,9 +1,23 @@
 import { routeAgentRequest } from "agents";
 import { AgentManager } from "./agent-manager.js";
 import { CodeAgent } from "./agents/code-agent.js";
-import type { Env } from "./types.js";
+import { TestAgent } from "./agents/test-agent.js";
+import { ReviewAgent } from "./agents/review-agent.js";
+import { BuildAgent } from "./agents/build-agent.js";
+import { DocsAgent } from "./agents/docs-agent.js";
+import type { Env, TaskMessage, TaskType } from "./types.js";
+import { AGENT_BINDINGS } from "./types.js";
 
-export { AgentManager, CodeAgent };
+// Re-export all DO classes (required by wrangler)
+export { AgentManager, CodeAgent, TestAgent, ReviewAgent, BuildAgent, DocsAgent };
+
+function getAgentStub(env: Env, type: TaskType, taskId: string) {
+  const bindingName = AGENT_BINDINGS[type];
+  const namespace = env[bindingName] as DurableObjectNamespace;
+  const agentName = `${type}-${taskId}`;
+  const id = namespace.idFromName(agentName);
+  return { stub: namespace.get(id), agentName };
+}
 
 export default {
   async fetch(
@@ -29,10 +43,60 @@ export default {
       return Response.json({
         name: "agent-swarm",
         status: "ok",
-        agents: ["code"],
+        agents: ["code", "test", "review", "build", "docs"],
       });
     }
 
     return new Response("Not found", { status: 404 });
+  },
+
+  // Queue consumer: routes task messages to the appropriate agent DO
+  async queue(
+    batch: MessageBatch<TaskMessage>,
+    env: Env,
+    ctx: ExecutionContext,
+  ): Promise<void> {
+    for (const message of batch.messages) {
+      const { taskId, type, description, input } = message.body;
+
+      try {
+        // Update D1: mark assigned
+        const { stub, agentName } = getAgentStub(env, type, taskId);
+
+        await env.DB.prepare(
+          `UPDATE tasks SET status = 'assigned', agent_id = ?, updated_at = datetime('now') WHERE id = ?`,
+        )
+          .bind(agentName, taskId)
+          .run();
+
+        // Dispatch to agent DO
+        const response = await stub.fetch(
+          new Request("https://internal/execute", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ taskId, description, input }),
+          }),
+        );
+
+        if (response.status === 202) {
+          message.ack();
+        } else {
+          message.retry({ delaySeconds: Math.pow(2, message.attempts) });
+        }
+      } catch (error) {
+        if (message.attempts < 3) {
+          message.retry({ delaySeconds: Math.pow(2, message.attempts) });
+        } else {
+          // Will go to DLQ after max_retries
+          const errorMsg = error instanceof Error ? error.message : String(error);
+          await env.DB.prepare(
+            `UPDATE tasks SET status = 'failed', error = ?, updated_at = datetime('now') WHERE id = ?`,
+          )
+            .bind(`Queue delivery failed: ${errorMsg}`, taskId)
+            .run();
+          message.ack();
+        }
+      }
+    }
   },
 };

@@ -1,5 +1,5 @@
 import { Agent, callable } from "agents";
-import type { Env, ManagerState, CreateTaskRequest, Task } from "./types.js";
+import type { Env, ManagerState, CreateTaskRequest, Task, TaskMessage } from "./types.js";
 
 export class AgentManager extends Agent<Env, ManagerState> {
   initialState: ManagerState = { activeTaskCount: 0 };
@@ -25,6 +25,7 @@ export class AgentManager extends Agent<Env, ManagerState> {
     const type = body.type ?? "code";
     const priority = body.priority ?? 2;
 
+    // Persist task to D1
     await this.env.DB.prepare(
       `INSERT INTO tasks (id, type, status, priority, description, input)
        VALUES (?, ?, 'pending', ?, ?, ?)`,
@@ -32,36 +33,16 @@ export class AgentManager extends Agent<Env, ManagerState> {
       .bind(taskId, type, priority, body.description, JSON.stringify(body.input ?? {}))
       .run();
 
-    if (type === "code") {
-      await this.assignToCodeAgent(taskId, body.description, body.input);
-    }
+    // Enqueue to task queue for async processing
+    const message: TaskMessage = {
+      taskId,
+      type,
+      description: body.description,
+      input: body.input,
+    };
+    await this.env.TASK_QUEUE.send(message);
 
-    return Response.json({ id: taskId, status: "pending" }, { status: 201 });
-  }
-
-  private async assignToCodeAgent(
-    taskId: string,
-    description: string,
-    input?: Record<string, unknown>,
-  ): Promise<void> {
-    const agentName = `code-${taskId}`;
-
-    await this.env.DB.prepare(
-      `UPDATE tasks SET status = 'assigned', agent_id = ?, updated_at = datetime('now') WHERE id = ?`,
-    )
-      .bind(agentName, taskId)
-      .run();
-
-    const id = this.env.CODE_AGENT.idFromName(agentName);
-    const stub = this.env.CODE_AGENT.get(id);
-
-    stub.fetch(
-      new Request("https://internal/execute", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ taskId, description, input }),
-      }),
-    );
+    return Response.json({ id: taskId, status: "queued" }, { status: 201 });
   }
 
   private async handleGetTask(taskId: string): Promise<Response> {
