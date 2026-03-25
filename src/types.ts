@@ -10,6 +10,8 @@ export interface Env {
   TASK_QUEUE: Queue<TaskMessage>;
   TASK_DLQ: Queue<TaskMessage>;
   TASK_PIPELINE: Workflow;
+  ARTIFACTS: R2Bucket;
+  CACHE: KVNamespace;
 }
 
 export type TaskStatus = "pending" | "queued" | "assigned" | "running" | "review" | "completed" | "failed";
@@ -83,4 +85,27 @@ export interface ReviewPayload {
   approved: boolean;
   reviewer: string;
   feedback?: string;
+}
+
+// Reliability metrics (Narayanan & Kapoor framework)
+// 4 dimensions, 12 metrics — we track the most implementable ones per run
+export interface ReliabilityMetrics {
+  // Consistency (R_Con)
+  outcome: boolean;              // C_out: did this run succeed?
+  tokensIn: number;              // C_res: resource consistency
+  tokensOut: number;
+  durationMs: number;
+  costUsd: number;
+
+  // Robustness (R_Rob) — tracked over repeated runs
+  // R_fault: resilience to infra failures (retry count)
+  retryCount: number;
+
+  // Predictability (R_Pred)
+  // P_cal: confidence vs actual outcome
+  confidence: number | null;     // Agent's stated confidence (0-1)
+
+  // Safety (R_Saf)
+  constraintViolations: string[];  // S_comp: list of violated constraints
+  violationSeverity: "none" | "low" | "medium" | "high";  // S_harm
 }

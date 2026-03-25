@@ -58,5 +58,15 @@ name = "task-pipeline"
 binding = "TASK_PIPELINE"
 class_name = "TaskPipeline"
 
+# R2 for artifacts (code outputs, exports, logs)
+[[r2_buckets]]
+binding = "ARTIFACTS"
+bucket_name = "agent-swarm-artifacts"
+
+# KV for caching (task results, agent configs)
+[[kv_namespaces]]
+binding = "CACHE"
+id = "LOCAL"  # Replace with real ID after: wrangler kv namespace create CACHE
+
 [observability]
 enabled = true

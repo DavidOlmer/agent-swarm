@@ -18,3 +18,65 @@ CREATE TABLE IF NOT EXISTS tasks (
 CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
 CREATE INDEX IF NOT EXISTS idx_tasks_type ON tasks(type);
 CREATE INDEX IF NOT EXISTS idx_tasks_priority ON tasks(priority, status);
+
+-- Feedback: human ratings on agent outputs
+CREATE TABLE IF NOT EXISTS feedback (
+  id TEXT PRIMARY KEY,
+  task_id TEXT NOT NULL,
+  rating INTEGER NOT NULL,            -- 1-5 stars
+  feedback_type TEXT NOT NULL DEFAULT 'quality',  -- 'quality', 'accuracy', 'speed'
+  comment TEXT,
+  reviewer TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  FOREIGN KEY (task_id) REFERENCES tasks(id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_feedback_task ON feedback(task_id);
+
+-- Learnings: extracted patterns from successful/failed tasks
+CREATE TABLE IF NOT EXISTS learnings (
+  id TEXT PRIMARY KEY,
+  agent_type TEXT NOT NULL,           -- 'code', 'test', etc.
+  pattern_type TEXT NOT NULL,         -- 'success', 'failure', 'correction'
+  description TEXT NOT NULL,          -- What was learned
+  context TEXT,                       -- JSON: task description pattern, input characteristics
+  frequency INTEGER NOT NULL DEFAULT 1,  -- How often this pattern has been seen
+  last_seen_at TEXT NOT NULL DEFAULT (datetime('now')),
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_learnings_agent ON learnings(agent_type);
+CREATE INDEX IF NOT EXISTS idx_learnings_frequency ON learnings(frequency DESC);
+
+-- Agent runs: track performance + reliability metrics per execution
+-- Based on Narayanan & Kapoor "Towards a Science of AI Agent Reliability" (2026)
+-- 4 dimensions: Consistency, Robustness, Predictability, Safety
+CREATE TABLE IF NOT EXISTS agent_runs (
+  id TEXT PRIMARY KEY,
+  task_id TEXT NOT NULL,
+  agent_type TEXT NOT NULL,
+  model TEXT,
+  -- Consistency metrics (C_res: resource usage)
+  tokens_in INTEGER DEFAULT 0,
+  tokens_out INTEGER DEFAULT 0,
+  duration_ms INTEGER,
+  cost_usd REAL DEFAULT 0,
+  -- Robustness (R_fault: resilience)
+  retry_count INTEGER DEFAULT 0,
+  -- Predictability (P_cal: confidence calibration)
+  confidence REAL,                    -- Agent's stated confidence 0-1
+  outcome INTEGER DEFAULT 0,         -- 1=success, 0=failure (for calibration)
+  -- Safety (S_comp + S_harm)
+  constraint_violations TEXT,         -- JSON array of violations
+  violation_severity TEXT DEFAULT 'none',  -- 'none', 'low', 'medium', 'high'
+  -- Lifecycle
+  status TEXT NOT NULL DEFAULT 'started',
+  error TEXT,
+  started_at TEXT NOT NULL DEFAULT (datetime('now')),
+  completed_at TEXT,
+  FOREIGN KEY (task_id) REFERENCES tasks(id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_agent_runs_task ON agent_runs(task_id);
+CREATE INDEX IF NOT EXISTS idx_agent_runs_type ON agent_runs(agent_type);
+CREATE INDEX IF NOT EXISTS idx_agent_runs_outcome ON agent_runs(agent_type, outcome);
