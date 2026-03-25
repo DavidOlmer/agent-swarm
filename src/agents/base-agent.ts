@@ -1,5 +1,5 @@
 import { DurableObject } from "cloudflare:workers";
-import { generateText } from "ai";
+import { streamText } from "ai";
 import type { LanguageModel } from "ai";
 import { createWorkersAI } from "workers-ai-provider";
 import { createOpenAI } from "@ai-sdk/openai";
@@ -171,14 +171,17 @@ export abstract class BaseAgent extends DurableObject<Env> {
       ? `${description}\n\nAdditional context: ${JSON.stringify(input)}`
       : description;
 
-    const result = await generateText({
+    // Use streamText to avoid Workers AI 120s inference timeout
+    // Streaming keeps the connection alive — timeout is time-to-first-token only
+    const stream = streamText({
       model,
       system: enhancedPrompt,
       prompt: userPrompt,
     });
+    const fullText = await stream.text;
 
     // Strip markdown code fences if present
-    let text = result.text.trim();
+    let text = fullText.trim();
     if (text.startsWith("```")) {
       text = text.replace(/^```\w*\n?/, "").replace(/\n?```$/, "").trim();
     }

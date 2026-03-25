@@ -28,7 +28,7 @@ export class TaskPipeline extends WorkflowEntrypoint<Env, PipelineParams> {
     // Step 2: Execute agent (LLM call)
     await step.do(
       "execute-agent",
-      { retries: { limit: 2, delay: "5 seconds", backoff: "exponential" }, timeout: "2 minutes" },
+      { retries: { limit: 2, delay: "5 seconds", backoff: "exponential" }, timeout: "10 minutes" },
       async () => {
         const bindingName = AGENT_BINDINGS[type];
         const namespace = this.env[bindingName] as DurableObjectNamespace;

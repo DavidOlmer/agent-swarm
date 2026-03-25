@@ -12,5 +12,5 @@
     "resolveJsonModule": true
   },
   "include": ["src/**/*.ts"],
-  "exclude": ["src/_staging/**"]
+  "exclude": ["src/_staging/**", "src/patches/**"]
 }
