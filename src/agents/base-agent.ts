@@ -52,6 +52,9 @@ export abstract class BaseAgent extends DurableObject<Env> {
         return anthropic(config.modelId);
       }
       case "workers-ai":
+      case "workers-ai-code":
+      case "workers-ai-fast":
+      case "workers-ai-agent":
       default: {
         const workersai = createWorkersAI({ binding: this.env.AI });
         return workersai(config.modelId);

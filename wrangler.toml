@@ -20,7 +20,7 @@ new_sqlite_classes = ["AgentManager", "CodeAgent", "TestAgent", "ReviewAgent", "
 
 [[migrations]]
 tag = "v2"
-new_sqlite_classes = ["SecurityAgent"]
+new_sqlite_classes = ["SecurityAgent", "DesignAgent"]
 
 [durable_objects]
 bindings = [
@@ -31,6 +31,7 @@ bindings = [
   { name = "BUILD_AGENT", class_name = "BuildAgent" },
   { name = "DOCS_AGENT", class_name = "DocsAgent" },
   { name = "SECURITY_AGENT", class_name = "SecurityAgent" },
+  { name = "DESIGN_AGENT", class_name = "DesignAgent" },
 ]
 
 # Task Queue: Agent Manager produces, Worker consumes and routes to agents

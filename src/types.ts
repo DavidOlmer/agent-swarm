@@ -8,6 +8,7 @@ export interface Env {
   BUILD_AGENT: DurableObjectNamespace;
   DOCS_AGENT: DurableObjectNamespace;
   SECURITY_AGENT: DurableObjectNamespace;
+  DESIGN_AGENT: DurableObjectNamespace;
   TASK_QUEUE: Queue<TaskMessage>;
   TASK_DLQ: Queue<TaskMessage>;
   TASK_PIPELINE: Workflow;
@@ -26,16 +27,21 @@ export interface Env {
   APP_URL?: string;
 }
 
-export type ModelProvider = "workers-ai" | "openai" | "anthropic";
+export type ModelProvider = "workers-ai" | "workers-ai-code" | "workers-ai-fast" | "workers-ai-agent" | "openai" | "anthropic";
 
 export const MODEL_CONFIGS: Record<ModelProvider, { modelId: string; label: string }> = {
-  "workers-ai": { modelId: "@cf/meta/llama-4-scout-17b-16e-instruct", label: "Llama 4 Scout (Workers AI)" },
+  // Workers AI — free tier, no API key needed
+  "workers-ai": { modelId: "@cf/moonshotai/kimi-k2.5", label: "Kimi K2.5 (best tool calling)" },
+  "workers-ai-code": { modelId: "@cf/qwen/qwen2.5-coder-32b-instruct", label: "Qwen Coder 32B (code specialist)" },
+  "workers-ai-fast": { modelId: "@cf/meta/llama-3.3-70b-instruct-fp8-fast", label: "Llama 3.3 70B FP8 (fast)" },
+  "workers-ai-agent": { modelId: "@cf/nvidia/nemotron-3-120b-a12b", label: "Nemotron 120B (multi-agent)" },
+  // External — requires API key or OAuth
   "openai": { modelId: "o3-mini", label: "o3-mini (OpenAI/Codex)" },
   "anthropic": { modelId: "claude-sonnet-4-5-20250514", label: "Claude Sonnet 4.5 (Anthropic)" },
 };
 
 export type TaskStatus = "pending" | "queued" | "assigned" | "running" | "review" | "completed" | "failed";
-export type TaskType = "code" | "test" | "review" | "build" | "docs" | "security";
+export type TaskType = "code" | "test" | "review" | "build" | "docs" | "security" | "design";
 
 export interface Task {
   id: string;
@@ -92,6 +98,7 @@ export const AGENT_BINDINGS: Record<TaskType, keyof Env> = {
   build: "BUILD_AGENT",
   docs: "DOCS_AGENT",
   security: "SECURITY_AGENT",
+  design: "DESIGN_AGENT",
 };
 
 // Workflow params
