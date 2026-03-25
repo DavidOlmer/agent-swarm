@@ -12,12 +12,11 @@ binding = "AI"
 [[d1_databases]]
 binding = "DB"
 database_name = "agent-swarm-state"
-database_id = "LOCAL"  # Replace with real ID after: wrangler d1 create agent-swarm-state
+database_id = "d4391b77-e8d9-4a3a-b137-5e05f5cbc851"
 
 [[migrations]]
 tag = "v1"
-new_sqlite_classes = ["AgentManager"]
-new_classes = ["CodeAgent", "TestAgent", "ReviewAgent", "BuildAgent", "DocsAgent"]
+new_sqlite_classes = ["AgentManager", "CodeAgent", "TestAgent", "ReviewAgent", "BuildAgent", "DocsAgent"]
 
 [durable_objects]
 bindings = [
@@ -67,7 +66,7 @@ bucket_name = "agent-swarm-artifacts"
 # KV for caching (task results, agent configs)
 [[kv_namespaces]]
 binding = "CACHE"
-id = "LOCAL"  # Replace with real ID after: wrangler kv namespace create CACHE
+id = "f278ae9022b1433eb762ab554826f512"
 
 [observability]
 enabled = true
