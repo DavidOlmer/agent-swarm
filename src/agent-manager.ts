@@ -11,9 +11,16 @@ export class AgentManager extends Agent<Env, ManagerState> {
       return this.handleCreateTask(request);
     }
 
+    // GET /api/tasks — list all tasks
+    if (url.pathname === "/api/tasks" && request.method === "GET") {
+      return this.handleListTasks();
+    }
+
     if (url.pathname.startsWith("/api/tasks/") && request.method === "GET") {
-      const taskId = url.pathname.split("/").pop()!;
-      return this.handleGetTask(taskId);
+      const segments = url.pathname.split("/").filter(Boolean);
+      if (segments.length === 3) {
+        return this.handleGetTask(segments[2]);
+      }
     }
 
     // POST /api/tasks/:id/review — send review event to workflow
@@ -80,6 +87,13 @@ export class AgentManager extends Agent<Env, ManagerState> {
       const msg = error instanceof Error ? error.message : String(error);
       return Response.json({ error: `Failed to send review: ${msg}` }, { status: 400 });
     }
+  }
+
+  private async handleListTasks(): Promise<Response> {
+    const { results } = await this.env.DB.prepare(
+      `SELECT * FROM tasks ORDER BY created_at DESC LIMIT 50`,
+    ).all<Task>();
+    return Response.json(results);
   }
 
   private async handleGetTask(taskId: string): Promise<Response> {
