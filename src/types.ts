@@ -7,6 +7,7 @@ export interface Env {
   REVIEW_AGENT: DurableObjectNamespace;
   BUILD_AGENT: DurableObjectNamespace;
   DOCS_AGENT: DurableObjectNamespace;
+  SECURITY_AGENT: DurableObjectNamespace;
   TASK_QUEUE: Queue<TaskMessage>;
   TASK_DLQ: Queue<TaskMessage>;
   TASK_PIPELINE: Workflow;
@@ -34,7 +35,7 @@ export const MODEL_CONFIGS: Record<ModelProvider, { modelId: string; label: stri
 };
 
 export type TaskStatus = "pending" | "queued" | "assigned" | "running" | "review" | "completed" | "failed";
-export type TaskType = "code" | "test" | "review" | "build" | "docs";
+export type TaskType = "code" | "test" | "review" | "build" | "docs" | "security";
 
 export interface Task {
   id: string;
@@ -90,6 +91,7 @@ export const AGENT_BINDINGS: Record<TaskType, keyof Env> = {
   review: "REVIEW_AGENT",
   build: "BUILD_AGENT",
   docs: "DOCS_AGENT",
+  security: "SECURITY_AGENT",
 };
 
 // Workflow params
