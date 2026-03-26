@@ -31,7 +31,7 @@ export type ModelProvider = "workers-ai" | "workers-ai-code" | "workers-ai-fast"
 
 export const MODEL_CONFIGS: Record<ModelProvider, { modelId: string; label: string }> = {
   // Workers AI — free tier, no API key needed
-  "workers-ai": { modelId: "@cf/moonshotai/kimi-k2.5", label: "Kimi K2.5 (best tool calling)" },
+  "workers-ai": { modelId: "@cf/moonshotai/kimi-k2.5", label: "Kimi K2.5 (default, streaming)" },
   "workers-ai-code": { modelId: "@cf/qwen/qwen2.5-coder-32b-instruct", label: "Qwen Coder 32B (code specialist)" },
   "workers-ai-fast": { modelId: "@cf/meta/llama-3.3-70b-instruct-fp8-fast", label: "Llama 3.3 70B FP8 (fast)" },
   "workers-ai-agent": { modelId: "@cf/nvidia/nemotron-3-120b-a12b", label: "Nemotron 120B (multi-agent)" },
