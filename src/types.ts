@@ -27,7 +27,7 @@ export interface Env {
   APP_URL?: string;
 }
 
-export type ModelProvider = "workers-ai" | "workers-ai-code" | "workers-ai-fast" | "workers-ai-agent" | "openai" | "anthropic";
+export type ModelProvider = "workers-ai" | "workers-ai-code" | "workers-ai-fast" | "workers-ai-agent" | "workers-ai-reasoning" | "openai" | "anthropic";
 
 export const MODEL_CONFIGS: Record<ModelProvider, { modelId: string; label: string }> = {
   // Workers AI — free tier, no API key needed
@@ -35,6 +35,7 @@ export const MODEL_CONFIGS: Record<ModelProvider, { modelId: string; label: stri
   "workers-ai-code": { modelId: "@cf/qwen/qwen2.5-coder-32b-instruct", label: "Qwen Coder 32B (code specialist)" },
   "workers-ai-fast": { modelId: "@cf/meta/llama-3.3-70b-instruct-fp8-fast", label: "Llama 3.3 70B FP8 (fast)" },
   "workers-ai-agent": { modelId: "@cf/nvidia/nemotron-3-120b-a12b", label: "Nemotron 120B (multi-agent)" },
+  "workers-ai-reasoning": { modelId: "@cf/deepseek-ai/deepseek-r1-distill-qwen-32b", label: "DeepSeek R1 32B (reasoning)" },
   // External — requires API key or OAuth
   "openai": { modelId: "o3-mini", label: "o3-mini (OpenAI/Codex)" },
   "anthropic": { modelId: "claude-sonnet-4-5-20250514", label: "Claude Sonnet 4.5 (Anthropic)" },

@@ -55,6 +55,7 @@ export abstract class BaseAgent extends DurableObject<Env> {
       case "workers-ai-code":
       case "workers-ai-fast":
       case "workers-ai-agent":
+      case "workers-ai-reasoning":
       default: {
         const workersai = createWorkersAI({ binding: this.env.AI });
         return workersai(config.modelId);
