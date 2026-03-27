@@ -9,6 +9,7 @@ export interface Env {
   DOCS_AGENT: DurableObjectNamespace;
   SECURITY_AGENT: DurableObjectNamespace;
   DESIGN_AGENT: DurableObjectNamespace;
+  EVIDENCE_STORE: DurableObjectNamespace;
   TASK_QUEUE: Queue<TaskMessage>;
   TASK_DLQ: Queue<TaskMessage>;
   TASK_PIPELINE: Workflow;

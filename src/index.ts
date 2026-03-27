@@ -7,6 +7,7 @@ import { BuildAgent } from "./agents/build-agent.js";
 import { DocsAgent } from "./agents/docs-agent.js";
 import { SecurityAgent } from "./agents/security-agent.js";
 import { DesignAgent } from "./agents/design-agent.js";
+import { EvidenceStore } from "./evidence/evidence-store.js";
 import { TaskPipeline } from "./task-pipeline.js";
 import { handleApiRequest } from "./api.js";
 import { handleAuthRequest } from "./auth.js";
@@ -15,7 +16,7 @@ import type { Env, TaskMessage, TaskType } from "./types.js";
 import { AGENT_BINDINGS } from "./types.js";
 
 // Re-export all DO + Workflow classes (required by wrangler)
-export { AgentManager, CodeAgent, TestAgent, ReviewAgent, BuildAgent, DocsAgent, SecurityAgent, DesignAgent, TaskPipeline };
+export { AgentManager, CodeAgent, TestAgent, ReviewAgent, BuildAgent, DocsAgent, SecurityAgent, DesignAgent, EvidenceStore, TaskPipeline };
 
 function getAgentStub(env: Env, type: TaskType, taskId: string) {
   const bindingName = AGENT_BINDINGS[type];
@@ -43,6 +44,15 @@ export default {
     if (url.pathname.startsWith("/api/")) {
       const apiResponse = await handleApiRequest(request, env);
       if (apiResponse) return apiResponse;
+    }
+
+    // Evidence Store routing — per-tenant DO
+    if (url.pathname.startsWith("/evidence/") || url.pathname === "/evidence" || url.pathname.startsWith("/chain/")) {
+      const tenantId = request.headers.get("X-Tenant-Id");
+      if (!tenantId) return Response.json({ error: "X-Tenant-Id header required" }, { status: 400 });
+      const id = env.EVIDENCE_STORE.idFromName(tenantId);
+      const stub = env.EVIDENCE_STORE.get(id);
+      return stub.fetch(request);
     }
 
     // Agent SDK routing (WebSocket, RPC)
