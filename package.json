@@ -22,7 +22,7 @@
     "ai": "^6.0.138",
     "typescript": "^6.0.2",
     "workers-ai-provider": "^3.1.8",
-    "wrangler": "^4.77.0",
+    "wrangler": "^4.83.0",
     "zod": "^4.3.6"
   }
 }
