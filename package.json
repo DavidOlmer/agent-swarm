@@ -17,7 +17,7 @@
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.64",
     "@ai-sdk/openai": "^3.0.48",
-    "@cloudflare/workers-types": "^4.20260317.1",
+    "@cloudflare/workers-types": "^4.20260415.1",
     "agents": "^0.8.4",
     "ai": "^6.0.138",
     "typescript": "^6.0.2",
