@@ -18,7 +18,7 @@
     "@ai-sdk/anthropic": "^3.0.64",
     "@ai-sdk/openai": "^3.0.48",
     "@cloudflare/workers-types": "^4.20260317.1",
-    "agents": "^0.8.4",
+    "agents": "^0.11.0",
     "ai": "^6.0.138",
     "typescript": "^6.0.2",
     "workers-ai-provider": "^3.1.8",
