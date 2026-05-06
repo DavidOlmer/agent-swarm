@@ -15,7 +15,7 @@
   "license": "ISC",
   "type": "module",
   "dependencies": {
-    "@ai-sdk/anthropic": "^3.0.64",
+    "@ai-sdk/anthropic": "^3.0.75",
     "@ai-sdk/openai": "^3.0.48",
     "@cloudflare/workers-types": "^4.20260317.1",
     "agents": "^0.8.4",
